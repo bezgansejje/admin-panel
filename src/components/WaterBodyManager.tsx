@@ -168,7 +168,7 @@ export function WaterBodyManager() {
           <label className="field">
             <span>Ссылка на изображение</span>
             <input
-              placeholder="https://... или /images/..."
+              placeholder="https://..."
               value={form.imageUrl}
               onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
             />

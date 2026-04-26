@@ -99,7 +99,11 @@ export function AIChat() {
           placeholder="Напишите сообщение..."
           disabled={isLoading}
         />
-        <button onClick={sendMessage} disabled={isLoading || !input.trim()}>
+        <button
+          className="btn"
+          onClick={sendMessage}
+          disabled={isLoading || !input.trim()}
+        >
           {isLoading ? '...' : 'Отправить'}
         </button>
       </div>

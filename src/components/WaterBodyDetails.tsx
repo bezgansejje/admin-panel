@@ -240,6 +240,9 @@ export function WaterBodyDetails({ id }: { id: string }) {
   const [passportSaving, setPassportSaving] = useState(false);
   const [error, setError] = useState('');
   const [historySearchQuery, setHistorySearchQuery] = useState('');
+  const [historyPage, setHistoryPage] = useState(1);
+
+  const measurementsPerPage = 15;
 
   async function load() {
     try {
@@ -287,6 +290,25 @@ export function WaterBodyDetails({ id }: { id: string }) {
       (measurement.trophicStatus && measurement.trophicStatus.toLowerCase().includes(query))
     );
   });
+
+  // Пагинация
+  const totalHistoryPages = Math.ceil(filteredMeasurements.length / measurementsPerPage);
+  const paginatedMeasurements = filteredMeasurements.slice(
+    (historyPage - 1) * measurementsPerPage,
+    historyPage * measurementsPerPage
+  );
+
+  // Сброс страницы при изменении поиска
+  useEffect(() => {
+    setHistoryPage(1);
+  }, [historySearchQuery]);
+
+  // Корректировка текущей страницы если она выходит за пределы
+  useEffect(() => {
+    if (historyPage > totalHistoryPages && totalHistoryPages > 0) {
+      setHistoryPage(totalHistoryPages);
+    }
+  }, [historyPage, totalHistoryPages]);
 
   function startEditMeasurement(m: Measurement) {
     setActiveSection('measurements');
@@ -738,7 +760,7 @@ export function WaterBodyDetails({ id }: { id: string }) {
             {/* Поиск в истории */}
             <div className="form-grid" style={{ marginBottom: 20 }}>
               <label className="field">
-                <span>Поиск в истории</span>
+                <span>🔍 Поиск в истории</span>
                 <input
                   type="text"
                   value={historySearchQuery}
@@ -770,51 +792,166 @@ export function WaterBodyDetails({ id }: { id: string }) {
             {filteredMeasurements.length === 0 ? (
               <p>{historySearchQuery ? 'Записи не найдены по вашему запросу' : 'Записей пока нет'}</p>
             ) : (
-              <div className="table-wrap">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Дата</th>
-                      <th>pH</th>
-                      <th>Мутность</th>
-                      <th>Трофический статус</th>
-                      <th>Действия</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredMeasurements.map((measurement) => (
-                      <tr key={measurement.id}>
-                        <td>{formatDate(measurement.recordDate || undefined)}</td>
-                        <td>{measurement.ph ?? '—'}</td>
-                        <td>{measurement.turbidity ?? '—'}</td>
-                        <td>{measurement.trophicStatus || '—'}</td>
-                        <td>
-                          <div className="actions table-actions">
-                            <button
-                              className="btn edit icon"
-                              type="button"
-                              title="Редактировать замер"
-                              aria-label="Редактировать замер"
-                              onClick={() => startEditMeasurement(measurement)}
-                            >
-                              <ActionIcon name="edit" />
-                            </button>
-                            <button
-                              className="btn delete icon"
-                              type="button"
-                              title="Удалить замер"
-                              aria-label="Удалить замер"
-                              onClick={() => void handleDeleteMeasurement(measurement.id)}
-                            >
-                              <ActionIcon name="delete" />
-                            </button>
-                          </div>
-                         </td>
-                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <>
+                <div className="table-wrap">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Дата</th>
+                        <th>pH</th>
+                        <th>Мутность</th>
+                        <th>Трофический статус</th>
+                        <th>Действия</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedMeasurements.map((measurement) => (
+                        <tr key={measurement.id}>
+                          <td>{formatDate(measurement.recordDate || undefined)}</td>
+                          <td>{measurement.ph ?? '—'}</td>
+                          <td>{measurement.turbidity ?? '—'}</td>
+                          <td>{measurement.trophicStatus || '—'}</td>
+                          <td>
+                            <div className="actions table-actions">
+                              <button
+                                className="btn edit icon"
+                                type="button"
+                                title="Редактировать замер"
+                                aria-label="Редактировать замер"
+                                onClick={() => startEditMeasurement(measurement)}
+                              >
+                                <ActionIcon name="edit" />
+                              </button>
+                              <button
+                                className="btn delete icon"
+                                type="button"
+                                title="Удалить замер"
+                                aria-label="Удалить замер"
+                                onClick={() => void handleDeleteMeasurement(measurement.id)}
+                              >
+                                <ActionIcon name="delete" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Пагинация */}
+                {totalHistoryPages > 1 && (
+                  <div className="pagination" style={{ 
+                    display: 'flex', 
+                    justifyContent: 'center', 
+                    alignItems: 'center', 
+                    gap: '8px', 
+                    marginTop: '20px',
+                    flexWrap: 'wrap'
+                  }}>
+                    <button
+                      type="button"
+                      className="pagination-btn"
+                      disabled={historyPage === 1}
+                      onClick={() => setHistoryPage((prev) => Math.max(prev - 1, 1))}
+                      style={{
+                        padding: '6px 12px',
+                        border: '1px solid #ddd',
+                        background: historyPage === 1 ? '#f5f5f5' : 'white',
+                        cursor: historyPage === 1 ? 'not-allowed' : 'pointer',
+                        borderRadius: '4px'
+                      }}
+                    >
+                      ← Назад
+                    </button>
+
+                    {Array.from({ length: totalHistoryPages }, (_, index) => {
+                      const page = index + 1;
+                      // Показываем максимум 5 страниц с текущей в центре
+                      if (totalHistoryPages <= 7) {
+                        return (
+                          <button
+                            key={page}
+                            type="button"
+                            className={historyPage === page ? 'pagination-btn active' : 'pagination-btn'}
+                            onClick={() => setHistoryPage(page)}
+                            style={{
+                              padding: '6px 12px',
+                              border: '1px solid #ddd',
+                              background: historyPage === page ? '#007bff' : 'white',
+                              color: historyPage === page ? 'white' : 'black',
+                              cursor: 'pointer',
+                              borderRadius: '4px'
+                            }}
+                          >
+                            {page}
+                          </button>
+                        );
+                      }
+                      
+                      // Показываем сокращенную пагинацию
+                      if (page === 1 || page === totalHistoryPages || (page >= historyPage - 1 && page <= historyPage + 1)) {
+                        return (
+                          <button
+                            key={page}
+                            type="button"
+                            className={historyPage === page ? 'pagination-btn active' : 'pagination-btn'}
+                            onClick={() => setHistoryPage(page)}
+                            style={{
+                              padding: '6px 12px',
+                              border: '1px solid #ddd',
+                              background: historyPage === page ? '#007bff' : 'white',
+                              color: historyPage === page ? 'white' : 'black',
+                              cursor: 'pointer',
+                              borderRadius: '4px'
+                            }}
+                          >
+                            {page}
+                          </button>
+                        );
+                      }
+                      
+                      // Показываем многоточие
+                      if (page === 2 && historyPage > 3) {
+                        return <span key="ellipsis1" style={{ padding: '6px 12px' }}>...</span>;
+                      }
+                      if (page === totalHistoryPages - 1 && historyPage < totalHistoryPages - 2) {
+                        return <span key="ellipsis2" style={{ padding: '6px 12px' }}>...</span>;
+                      }
+                      
+                      return null;
+                    })}
+
+                    <button
+                      type="button"
+                      className="pagination-btn"
+                      disabled={historyPage === totalHistoryPages}
+                      onClick={() => setHistoryPage((prev) => Math.min(prev + 1, totalHistoryPages))}
+                      style={{
+                        padding: '6px 12px',
+                        border: '1px solid #ddd',
+                        background: historyPage === totalHistoryPages ? '#f5f5f5' : 'white',
+                        cursor: historyPage === totalHistoryPages ? 'not-allowed' : 'pointer',
+                        borderRadius: '4px'
+                      }}
+                    >
+                      Вперёд →
+                    </button>
+                  </div>
+                )}
+                
+                {/* Информация о странице */}
+                {totalHistoryPages > 1 && (
+                  <div style={{ 
+                    textAlign: 'center', 
+                    marginTop: '12px', 
+                    fontSize: '14px', 
+                    color: '#666' 
+                  }}>
+                    Страница {historyPage} из {totalHistoryPages} · Показано {paginatedMeasurements.length} из {filteredMeasurements.length} записей
+                  </div>
+                )}
+              </>
             )}
           </div>
         </>

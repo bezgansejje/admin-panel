@@ -28,9 +28,24 @@ export function AIChat() {
         text: res.data.reply || 'Получен пустой ответ'
       };
       setMessages(prev => [...prev, botMessage]);
-    } catch (err) {
-      console.error('Chat error:', err);
-      setError('Не удалось отправить сообщение. Попробуйте позже.');
+    } catch (err: any) {
+        console.error('Chat error:', err);
+
+        const serverMessage =
+          err?.response?.data?.reply ||
+          err?.response?.data?.error ||
+          err?.message ||
+          'Неизвестная ошибка';
+
+        setError(serverMessage);
+
+        const errorMessage = {
+          role: 'bot',
+          text: `❌ ${serverMessage}`,
+        };
+
+        setMessages(prev => [...prev, errorMessage]);
+      }
       const errorMessage = { 
         role: 'bot', 
         text: '❌ Извините, произошла ошибка. Пожалуйста, попробуйте позже.'

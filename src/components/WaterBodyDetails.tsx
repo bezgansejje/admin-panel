@@ -760,7 +760,7 @@ export function WaterBodyDetails({ id }: { id: string }) {
             {/* Поиск в истории */}
             <div className="form-grid" style={{ marginBottom: 20 }}>
               <label className="field">
-                <span>🔍 Поиск в истории</span>
+                <span>Поиск в истории</span>
                 <input
                   type="text"
                   value={historySearchQuery}

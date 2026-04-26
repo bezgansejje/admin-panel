@@ -12,7 +12,9 @@ export function AIChat() {
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
 
-    const userMessage = { role: 'user', text: input };
+    const currentInput = input;
+    const userMessage = { role: 'user', text: currentInput };
+
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
@@ -20,36 +22,31 @@ export function AIChat() {
 
     try {
       const res = await axios.post('/api/chat', {
-        message: input,
+        message: currentInput,
       });
 
-      const botMessage = { 
-        role: 'bot', 
-        text: res.data.reply || 'Получен пустой ответ'
+      const botMessage = {
+        role: 'bot',
+        text: res.data.reply || 'Получен пустой ответ',
       };
+
       setMessages(prev => [...prev, botMessage]);
     } catch (err: any) {
-        console.error('Chat error:', err);
+      console.error('Chat error:', err);
 
-        const serverMessage =
-          err?.response?.data?.reply ||
-          err?.response?.data?.error ||
-          err?.message ||
-          'Неизвестная ошибка';
+      const serverMessage =
+        err?.response?.data?.reply ||
+        err?.response?.data?.error ||
+        err?.message ||
+        'Неизвестная ошибка';
 
-        setError(serverMessage);
+      setError(serverMessage);
 
-        const errorMessage = {
-          role: 'bot',
-          text: `❌ ${serverMessage}`,
-        };
-
-        setMessages(prev => [...prev, errorMessage]);
-      }
-      const errorMessage = { 
-        role: 'bot', 
-        text: '❌ Извините, произошла ошибка. Пожалуйста, попробуйте позже.'
+      const errorMessage = {
+        role: 'bot',
+        text: `❌ ${serverMessage}`,
       };
+
       setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
@@ -98,7 +95,7 @@ export function AIChat() {
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+          onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
           placeholder="Напишите сообщение..."
           disabled={isLoading}
         />

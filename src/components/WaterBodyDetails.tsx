@@ -58,6 +58,8 @@ type PassportForm = {
 
 type SectionId = 'overview' | 'passport' | 'measurements' | 'history';
 
+type FormErrors = Partial<Record<keyof MeasurementForm, string>>;
+
 const emptyMeasurementForm: MeasurementForm = {
   recordDate: '',
   ph: '',
@@ -116,8 +118,65 @@ const sectionOptions: { id: SectionId; label: string; hint: string }[] = [
 
 function toNumber(value: string): number | undefined {
   if (!value.trim()) return undefined;
-  const n = Number(value);
+
+  const normalizedValue = value.replace(',', '.');
+  const n = Number(normalizedValue);
+
   return Number.isNaN(n) ? undefined : n;
+}
+
+function validateMeasurementForm(form: MeasurementForm): FormErrors {
+  const errors: FormErrors = {};
+
+  if (!form.recordDate.trim()) {
+    errors.recordDate = 'Укажите дату записи';
+  }
+
+  const numericRules: {
+    key: keyof MeasurementForm;
+    label: string;
+    min?: number;
+    max?: number;
+  }[] = [
+    { key: 'ph', label: 'pH', min: 0, max: 14 },
+    { key: 'turbidity', label: 'Мутность', min: 0 },
+    { key: 'permanganateOxid', label: 'Перманганатная окисляемость', min: 0 },
+    { key: 'mineralization', label: 'Минерализация', min: 0 },
+    { key: 'salinity', label: 'Соленость', min: 0 },
+    { key: 'hardness', label: 'Жесткость', min: 0 },
+    { key: 'calcium', label: 'Кальций', min: 0 },
+    { key: 'magnesium', label: 'Магний', min: 0 },
+    { key: 'chlorides', label: 'Хлориды', min: 0 },
+    { key: 'sulfates', label: 'Сульфаты', min: 0 },
+    { key: 'hydrocarbonates', label: 'Гидрокарбонаты', min: 0 },
+    { key: 'potassiumSodium', label: 'Калий + натрий', min: 0 },
+    { key: 'overgrowthPercent', label: 'Процент зарастания', min: 0, max: 100 },
+  ];
+
+  numericRules.forEach((rule) => {
+    const value = form[rule.key];
+
+    if (!value.trim()) return;
+
+    const normalizedValue = value.replace(',', '.');
+    const numberValue = Number(normalizedValue);
+
+    if (Number.isNaN(numberValue)) {
+      errors[rule.key] = `${rule.label}: введите число`;
+      return;
+    }
+
+    if (rule.min !== undefined && numberValue < rule.min) {
+      errors[rule.key] = `${rule.label}: значение не может быть меньше ${rule.min}`;
+      return;
+    }
+
+    if (rule.max !== undefined && numberValue > rule.max) {
+      errors[rule.key] = `${rule.label}: значение не может быть больше ${rule.max}`;
+    }
+  });
+
+  return errors;
 }
 
 function buildMeasurementPayload(form: MeasurementForm) {
@@ -233,6 +292,7 @@ export function WaterBodyDetails({ id }: { id: string }) {
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
   const [passportForm, setPassportForm] = useState<PassportForm>(emptyPassportForm);
   const [form, setForm] = useState<MeasurementForm>(emptyMeasurementForm);
+  const [formErrors, setFormErrors] = useState<FormErrors>({});
   const [activeSection, setActiveSection] = useState<SectionId>('overview');
   const [editingMeasurementId, setEditingMeasurementId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -243,6 +303,25 @@ export function WaterBodyDetails({ id }: { id: string }) {
   const [historyPage, setHistoryPage] = useState(1);
 
   const measurementsPerPage = 15;
+
+  const errorStyle = {
+    color: '#dc2626',
+    fontSize: 13,
+    marginTop: 4,
+    display: 'block',
+  };
+
+  function updateMeasurementField(key: keyof MeasurementForm, value: string) {
+    setForm((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+
+    setFormErrors((prev) => ({
+      ...prev,
+      [key]: undefined,
+    }));
+  }
 
   async function load() {
     try {
@@ -278,11 +357,11 @@ export function WaterBodyDetails({ id }: { id: string }) {
       )[0];
   }, [measurements]);
 
-  // Фильтрация истории замеров по поисковому запросу
   const filteredMeasurements = measurements.filter((measurement) => {
     if (!historySearchQuery.trim()) return true;
-    
+
     const query = historySearchQuery.toLowerCase().trim();
+
     return (
       (measurement.recordDate && formatDate(measurement.recordDate).toLowerCase().includes(query)) ||
       (measurement.ph != null && measurement.ph.toString().includes(query)) ||
@@ -291,19 +370,17 @@ export function WaterBodyDetails({ id }: { id: string }) {
     );
   });
 
-  // Пагинация
   const totalHistoryPages = Math.ceil(filteredMeasurements.length / measurementsPerPage);
+
   const paginatedMeasurements = filteredMeasurements.slice(
     (historyPage - 1) * measurementsPerPage,
-    historyPage * measurementsPerPage
+    historyPage * measurementsPerPage,
   );
 
-  // Сброс страницы при изменении поиска
   useEffect(() => {
     setHistoryPage(1);
   }, [historySearchQuery]);
 
-  // Корректировка текущей страницы если она выходит за пределы
   useEffect(() => {
     if (historyPage > totalHistoryPages && totalHistoryPages > 0) {
       setHistoryPage(totalHistoryPages);
@@ -314,16 +391,27 @@ export function WaterBodyDetails({ id }: { id: string }) {
     setActiveSection('measurements');
     setEditingMeasurementId(m.id);
     setForm(measurementToForm(m));
+    setFormErrors({});
   }
 
   function resetForm() {
     setForm(emptyMeasurementForm);
+    setFormErrors({});
     setEditingMeasurementId(null);
   }
 
   async function handleSubmit() {
+    const validationErrors = validateMeasurementForm(form);
+
+    if (Object.keys(validationErrors).length > 0) {
+      setFormErrors(validationErrors);
+      return;
+    }
+
     try {
       setSaving(true);
+      setFormErrors({});
+
       const payload = buildMeasurementPayload(form);
 
       if (editingMeasurementId) {
@@ -347,9 +435,11 @@ export function WaterBodyDetails({ id }: { id: string }) {
 
     try {
       await api.deleteWaterBodyMeasurement(id, measurementId);
+
       if (editingMeasurementId === measurementId) {
         resetForm();
       }
+
       await load();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Не удалось удалить замер');
@@ -388,6 +478,7 @@ export function WaterBodyDetails({ id }: { id: string }) {
             <h2 style={{ margin: 0 }}>{waterBody.name}</h2>
             <div className="muted">Информация о водоеме и быстрый доступ к основным действиям.</div>
           </div>
+
           <div className="actions">
             <button
               className="btn"
@@ -399,6 +490,7 @@ export function WaterBodyDetails({ id }: { id: string }) {
             >
               Добавить замер
             </button>
+
             <button
               className="btn secondary"
               type="button"
@@ -414,6 +506,7 @@ export function WaterBodyDetails({ id }: { id: string }) {
             <span className="info-chip-label">Замеров</span>
             <strong>{measurements.length}</strong>
           </div>
+
           <div className="info-chip">
             <span className="info-chip-label">Последняя запись</span>
             <strong>
@@ -422,6 +515,7 @@ export function WaterBodyDetails({ id }: { id: string }) {
                 : 'Нет данных'}
             </strong>
           </div>
+
           <div className="info-chip">
             <span className="info-chip-label">Район</span>
             <strong>{waterBody.district || 'Не указан'}</strong>
@@ -458,22 +552,28 @@ export function WaterBodyDetails({ id }: { id: string }) {
             <div>
               <strong>Район:</strong> {waterBody.district || '—'}
             </div>
+
             <div>
               <strong>Широта:</strong> {waterBody.latitude ?? '—'}
             </div>
+
             <div>
               <strong>Долгота:</strong> {waterBody.longitude ?? '—'}
             </div>
+
             <div>
               <strong>Паспорт заполнен:</strong> {waterBody.passport ? 'Да' : 'Нет'}
             </div>
+
             <div>
               <strong>Готово к вводу замеров:</strong> Да
             </div>
+
             <div className="field" style={{ gridColumn: '1 / -1' }}>
               <span>Ссылка на изображение</span>
               <input value={waterBody.imageUrl || ''} disabled />
             </div>
+
             {waterBody.imageUrl ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <img
@@ -498,7 +598,12 @@ export function WaterBodyDetails({ id }: { id: string }) {
             >
               Перейти к замерам
             </button>
-            <button className="btn secondary" type="button" onClick={() => setActiveSection('history')}>
+
+            <button
+              className="btn secondary"
+              type="button"
+              onClick={() => setActiveSection('history')}
+            >
               Открыть историю
             </button>
           </div>
@@ -519,83 +624,162 @@ export function WaterBodyDetails({ id }: { id: string }) {
           <div className="form-grid">
             <label className="field">
               <span>Площадь (га)</span>
-              <input value={passportForm.area} onChange={(e) => setPassportForm({ ...passportForm, area: e.target.value })} />
+              <input
+                value={passportForm.area}
+                onChange={(e) => setPassportForm({ ...passportForm, area: e.target.value })}
+              />
             </label>
+
             <label className="field">
               <span>Площадь зарастания (га)</span>
-              <input value={passportForm.overgrowthArea} onChange={(e) => setPassportForm({ ...passportForm, overgrowthArea: e.target.value })} />
+              <input
+                value={passportForm.overgrowthArea}
+                onChange={(e) => setPassportForm({ ...passportForm, overgrowthArea: e.target.value })}
+              />
             </label>
+
             <label className="field">
               <span>Высота (м)</span>
-              <input value={passportForm.altitude} onChange={(e) => setPassportForm({ ...passportForm, altitude: e.target.value })} />
+              <input
+                value={passportForm.altitude}
+                onChange={(e) => setPassportForm({ ...passportForm, altitude: e.target.value })}
+              />
             </label>
+
             <label className="field">
               <span>Длина (км)</span>
-              <input value={passportForm.length} onChange={(e) => setPassportForm({ ...passportForm, length: e.target.value })} />
+              <input
+                value={passportForm.length}
+                onChange={(e) => setPassportForm({ ...passportForm, length: e.target.value })}
+              />
             </label>
+
             <label className="field">
               <span>Макс. ширина (км)</span>
-              <input value={passportForm.maxWidth} onChange={(e) => setPassportForm({ ...passportForm, maxWidth: e.target.value })} />
+              <input
+                value={passportForm.maxWidth}
+                onChange={(e) => setPassportForm({ ...passportForm, maxWidth: e.target.value })}
+              />
             </label>
+
             <label className="field">
               <span>Длина береговой линии (км)</span>
-              <input value={passportForm.coastlineLength} onChange={(e) => setPassportForm({ ...passportForm, coastlineLength: e.target.value })} />
+              <input
+                value={passportForm.coastlineLength}
+                onChange={(e) => setPassportForm({ ...passportForm, coastlineLength: e.target.value })}
+              />
             </label>
+
             <label className="field">
               <span>Развитие береговой линии</span>
-              <input value={passportForm.coastlineDev} onChange={(e) => setPassportForm({ ...passportForm, coastlineDev: e.target.value })} />
+              <input
+                value={passportForm.coastlineDev}
+                onChange={(e) => setPassportForm({ ...passportForm, coastlineDev: e.target.value })}
+              />
             </label>
+
             <label className="field">
               <span>Водосборная площадь (кв. км)</span>
-              <input value={passportForm.catchmentArea} onChange={(e) => setPassportForm({ ...passportForm, catchmentArea: e.target.value })} />
+              <input
+                value={passportForm.catchmentArea}
+                onChange={(e) => setPassportForm({ ...passportForm, catchmentArea: e.target.value })}
+              />
             </label>
+
             <label className="field">
               <span>Текущая глубина (м)</span>
-              <input value={passportForm.currentDepth} onChange={(e) => setPassportForm({ ...passportForm, currentDepth: e.target.value })} />
+              <input
+                value={passportForm.currentDepth}
+                onChange={(e) => setPassportForm({ ...passportForm, currentDepth: e.target.value })}
+              />
             </label>
+
             <label className="field">
               <span>Макс. глубина (м)</span>
-              <input value={passportForm.maxDepth} onChange={(e) => setPassportForm({ ...passportForm, maxDepth: e.target.value })} />
+              <input
+                value={passportForm.maxDepth}
+                onChange={(e) => setPassportForm({ ...passportForm, maxDepth: e.target.value })}
+              />
             </label>
+
             <label className="field">
               <span>Средняя глубина (м)</span>
-              <input value={passportForm.avgDepth} onChange={(e) => setPassportForm({ ...passportForm, avgDepth: e.target.value })} />
+              <input
+                value={passportForm.avgDepth}
+                onChange={(e) => setPassportForm({ ...passportForm, avgDepth: e.target.value })}
+              />
             </label>
+
             <label className="field">
               <span>Объем (млн м3)</span>
-              <input value={passportForm.volume} onChange={(e) => setPassportForm({ ...passportForm, volume: e.target.value })} />
+              <input
+                value={passportForm.volume}
+                onChange={(e) => setPassportForm({ ...passportForm, volume: e.target.value })}
+              />
             </label>
+
             <label className="field">
               <span>Вид рыбного хозяйства</span>
-              <input value={passportForm.fisheryType} onChange={(e) => setPassportForm({ ...passportForm, fisheryType: e.target.value })} />
+              <input
+                value={passportForm.fisheryType}
+                onChange={(e) => setPassportForm({ ...passportForm, fisheryType: e.target.value })}
+              />
             </label>
+
             <label className="field">
               <span>Рыбопродуктивность</span>
-              <input value={passportForm.fishProductivity} onChange={(e) => setPassportForm({ ...passportForm, fishProductivity: e.target.value })} />
+              <input
+                value={passportForm.fishProductivity}
+                onChange={(e) => setPassportForm({ ...passportForm, fishProductivity: e.target.value })}
+              />
             </label>
+
             <label className="field" style={{ gridColumn: '1 / -1' }}>
               <span>Хозяйственная характеристика</span>
-              <textarea value={passportForm.economicDesc} onChange={(e) => setPassportForm({ ...passportForm, economicDesc: e.target.value })} />
+              <textarea
+                value={passportForm.economicDesc}
+                onChange={(e) => setPassportForm({ ...passportForm, economicDesc: e.target.value })}
+              />
             </label>
+
             <label className="field">
               <span>Водоохранная зона</span>
-              <input value={passportForm.waterProtectionZone} onChange={(e) => setPassportForm({ ...passportForm, waterProtectionZone: e.target.value })} />
+              <input
+                value={passportForm.waterProtectionZone}
+                onChange={(e) => setPassportForm({ ...passportForm, waterProtectionZone: e.target.value })}
+              />
             </label>
+
             <label className="field">
               <span>Водоохранная полоса</span>
-              <input value={passportForm.waterProtectionStrip} onChange={(e) => setPassportForm({ ...passportForm, waterProtectionStrip: e.target.value })} />
+              <input
+                value={passportForm.waterProtectionStrip}
+                onChange={(e) => setPassportForm({ ...passportForm, waterProtectionStrip: e.target.value })}
+              />
             </label>
+
             <label className="field" style={{ gridColumn: '1 / -1' }}>
               <span>Ихтиофауна</span>
-              <textarea value={passportForm.ichthyofauna} onChange={(e) => setPassportForm({ ...passportForm, ichthyofauna: e.target.value })} />
+              <textarea
+                value={passportForm.ichthyofauna}
+                onChange={(e) => setPassportForm({ ...passportForm, ichthyofauna: e.target.value })}
+              />
             </label>
+
             <label className="field" style={{ gridColumn: '1 / -1' }}>
               <span>Млекопитающие</span>
-              <textarea value={passportForm.mammals} onChange={(e) => setPassportForm({ ...passportForm, mammals: e.target.value })} />
+              <textarea
+                value={passportForm.mammals}
+                onChange={(e) => setPassportForm({ ...passportForm, mammals: e.target.value })}
+              />
             </label>
+
             <label className="field" style={{ gridColumn: '1 / -1' }}>
               <span>Беспозвоночные</span>
-              <textarea value={passportForm.invertebrates} onChange={(e) => setPassportForm({ ...passportForm, invertebrates: e.target.value })} />
+              <textarea
+                value={passportForm.invertebrates}
+                onChange={(e) => setPassportForm({ ...passportForm, invertebrates: e.target.value })}
+              />
             </label>
           </div>
 
@@ -603,6 +787,7 @@ export function WaterBodyDetails({ id }: { id: string }) {
             <button className="btn" type="button" onClick={handleSavePassport} disabled={passportSaving}>
               {passportSaving ? 'Сохранение...' : 'Сохранить паспорт'}
             </button>
+
             <button className="btn secondary" type="button" onClick={() => setActiveSection('measurements')}>
               К замерам
             </button>
@@ -619,103 +804,266 @@ export function WaterBodyDetails({ id }: { id: string }) {
                 Форма вынесена в отдельный раздел, чтобы можно было быстро вносить данные без прокрутки всей карточки.
               </div>
             </div>
+
             <span className="badge">
               {editingMeasurementId ? 'Режим редактирования' : 'Новая запись'}
             </span>
           </div>
 
+          {Object.keys(formErrors).length > 0 ? (
+            <div
+              style={{
+                padding: '12px 14px',
+                borderRadius: 12,
+                background: '#fef2f2',
+                color: '#991b1b',
+                border: '1px solid #fecaca',
+                fontSize: 14,
+              }}
+            >
+              Проверьте правильность заполнения полей перед сохранением.
+            </div>
+          ) : null}
+
           <div className="form-grid">
             <label className="field">
               <span>Дата записи</span>
-              <input type="date" value={form.recordDate} onChange={(e) => setForm({ ...form, recordDate: e.target.value })} />
+              <input
+                type="date"
+                value={form.recordDate}
+                onChange={(e) => updateMeasurementField('recordDate', e.target.value)}
+              />
+              {formErrors.recordDate ? <small style={errorStyle}>{formErrors.recordDate}</small> : null}
             </label>
+
             <label className="field">
               <span>pH</span>
-              <input value={form.ph} onChange={(e) => setForm({ ...form, ph: e.target.value })} />
+              <input
+                type="number"
+                min="0"
+                max="14"
+                step="0.1"
+                value={form.ph}
+                onChange={(e) => updateMeasurementField('ph', e.target.value)}
+              />
+              {formErrors.ph ? <small style={errorStyle}>{formErrors.ph}</small> : null}
             </label>
+
             <label className="field">
               <span>Мутность</span>
-              <input value={form.turbidity} onChange={(e) => setForm({ ...form, turbidity: e.target.value })} />
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.turbidity}
+                onChange={(e) => updateMeasurementField('turbidity', e.target.value)}
+              />
+              {formErrors.turbidity ? <small style={errorStyle}>{formErrors.turbidity}</small> : null}
             </label>
+
             <label className="field">
               <span>Растворенные газы</span>
-              <input value={form.dissolvedGases} onChange={(e) => setForm({ ...form, dissolvedGases: e.target.value })} />
+              <input
+                value={form.dissolvedGases}
+                onChange={(e) => updateMeasurementField('dissolvedGases', e.target.value)}
+              />
             </label>
+
             <label className="field">
               <span>Биогенные соединения</span>
-              <input value={form.biogenicCompounds} onChange={(e) => setForm({ ...form, biogenicCompounds: e.target.value })} />
+              <input
+                value={form.biogenicCompounds}
+                onChange={(e) => updateMeasurementField('biogenicCompounds', e.target.value)}
+              />
             </label>
+
             <label className="field">
               <span>Перманганатная окисляемость</span>
-              <input value={form.permanganateOxid} onChange={(e) => setForm({ ...form, permanganateOxid: e.target.value })} />
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.permanganateOxid}
+                onChange={(e) => updateMeasurementField('permanganateOxid', e.target.value)}
+              />
+              {formErrors.permanganateOxid ? <small style={errorStyle}>{formErrors.permanganateOxid}</small> : null}
             </label>
+
             <label className="field">
               <span>Минерализация</span>
-              <input value={form.mineralization} onChange={(e) => setForm({ ...form, mineralization: e.target.value })} />
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.mineralization}
+                onChange={(e) => updateMeasurementField('mineralization', e.target.value)}
+              />
+              {formErrors.mineralization ? <small style={errorStyle}>{formErrors.mineralization}</small> : null}
             </label>
+
             <label className="field">
               <span>Соленость</span>
-              <input value={form.salinity} onChange={(e) => setForm({ ...form, salinity: e.target.value })} />
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.salinity}
+                onChange={(e) => updateMeasurementField('salinity', e.target.value)}
+              />
+              {formErrors.salinity ? <small style={errorStyle}>{formErrors.salinity}</small> : null}
             </label>
+
             <label className="field">
               <span>Жесткость</span>
-              <input value={form.hardness} onChange={(e) => setForm({ ...form, hardness: e.target.value })} />
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.hardness}
+                onChange={(e) => updateMeasurementField('hardness', e.target.value)}
+              />
+              {formErrors.hardness ? <small style={errorStyle}>{formErrors.hardness}</small> : null}
             </label>
+
             <label className="field">
               <span>Кальций</span>
-              <input value={form.calcium} onChange={(e) => setForm({ ...form, calcium: e.target.value })} />
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.calcium}
+                onChange={(e) => updateMeasurementField('calcium', e.target.value)}
+              />
+              {formErrors.calcium ? <small style={errorStyle}>{formErrors.calcium}</small> : null}
             </label>
+
             <label className="field">
               <span>Магний</span>
-              <input value={form.magnesium} onChange={(e) => setForm({ ...form, magnesium: e.target.value })} />
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.magnesium}
+                onChange={(e) => updateMeasurementField('magnesium', e.target.value)}
+              />
+              {formErrors.magnesium ? <small style={errorStyle}>{formErrors.magnesium}</small> : null}
             </label>
+
             <label className="field">
               <span>Хлориды</span>
-              <input value={form.chlorides} onChange={(e) => setForm({ ...form, chlorides: e.target.value })} />
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.chlorides}
+                onChange={(e) => updateMeasurementField('chlorides', e.target.value)}
+              />
+              {formErrors.chlorides ? <small style={errorStyle}>{formErrors.chlorides}</small> : null}
             </label>
+
             <label className="field">
               <span>Сульфаты</span>
-              <input value={form.sulfates} onChange={(e) => setForm({ ...form, sulfates: e.target.value })} />
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.sulfates}
+                onChange={(e) => updateMeasurementField('sulfates', e.target.value)}
+              />
+              {formErrors.sulfates ? <small style={errorStyle}>{formErrors.sulfates}</small> : null}
             </label>
+
             <label className="field">
               <span>Гидрокарбонаты</span>
-              <input value={form.hydrocarbonates} onChange={(e) => setForm({ ...form, hydrocarbonates: e.target.value })} />
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.hydrocarbonates}
+                onChange={(e) => updateMeasurementField('hydrocarbonates', e.target.value)}
+              />
+              {formErrors.hydrocarbonates ? <small style={errorStyle}>{formErrors.hydrocarbonates}</small> : null}
             </label>
+
             <label className="field">
               <span>Калий + натрий</span>
-              <input value={form.potassiumSodium} onChange={(e) => setForm({ ...form, potassiumSodium: e.target.value })} />
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.potassiumSodium}
+                onChange={(e) => updateMeasurementField('potassiumSodium', e.target.value)}
+              />
+              {formErrors.potassiumSodium ? <small style={errorStyle}>{formErrors.potassiumSodium}</small> : null}
             </label>
+
             <label className="field">
               <span>Процент зарастания</span>
-              <input value={form.overgrowthPercent} onChange={(e) => setForm({ ...form, overgrowthPercent: e.target.value })} />
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="1"
+                value={form.overgrowthPercent}
+                onChange={(e) => updateMeasurementField('overgrowthPercent', e.target.value)}
+              />
+              {formErrors.overgrowthPercent ? <small style={errorStyle}>{formErrors.overgrowthPercent}</small> : null}
             </label>
+
             <label className="field">
               <span>Степень зарастания</span>
-              <input value={form.overgrowthDegree} onChange={(e) => setForm({ ...form, overgrowthDegree: e.target.value })} />
+              <input
+                value={form.overgrowthDegree}
+                onChange={(e) => updateMeasurementField('overgrowthDegree', e.target.value)}
+              />
             </label>
+
             <label className="field">
               <span>Развитие фитопланктона</span>
-              <input value={form.phytoplanktonDev} onChange={(e) => setForm({ ...form, phytoplanktonDev: e.target.value })} />
+              <input
+                value={form.phytoplanktonDev}
+                onChange={(e) => updateMeasurementField('phytoplanktonDev', e.target.value)}
+              />
             </label>
+
             <label className="field" style={{ gridColumn: '1 / -1' }}>
               <span>Таксономия зоопланктона</span>
-              <textarea value={form.zooplanktonTaxa} onChange={(e) => setForm({ ...form, zooplanktonTaxa: e.target.value })} />
+              <textarea
+                value={form.zooplanktonTaxa}
+                onChange={(e) => updateMeasurementField('zooplanktonTaxa', e.target.value)}
+              />
             </label>
+
             <label className="field" style={{ gridColumn: '1 / -1' }}>
               <span>Группы зоопланктона</span>
-              <textarea value={form.zooplanktonGroups} onChange={(e) => setForm({ ...form, zooplanktonGroups: e.target.value })} />
+              <textarea
+                value={form.zooplanktonGroups}
+                onChange={(e) => updateMeasurementField('zooplanktonGroups', e.target.value)}
+              />
             </label>
+
             <label className="field" style={{ gridColumn: '1 / -1' }}>
               <span>Таксономия зообентоса</span>
-              <textarea value={form.zoobenthosTaxa} onChange={(e) => setForm({ ...form, zoobenthosTaxa: e.target.value })} />
+              <textarea
+                value={form.zoobenthosTaxa}
+                onChange={(e) => updateMeasurementField('zoobenthosTaxa', e.target.value)}
+              />
             </label>
+
             <label className="field" style={{ gridColumn: '1 / -1' }}>
               <span>Группы зообентоса</span>
-              <textarea value={form.zoobenthosGroups} onChange={(e) => setForm({ ...form, zoobenthosGroups: e.target.value })} />
+              <textarea
+                value={form.zoobenthosGroups}
+                onChange={(e) => updateMeasurementField('zoobenthosGroups', e.target.value)}
+              />
             </label>
+
             <label className="field" style={{ gridColumn: '1 / -1' }}>
               <span>Трофический статус</span>
-              <input value={form.trophicStatus} onChange={(e) => setForm({ ...form, trophicStatus: e.target.value })} />
+              <input
+                value={form.trophicStatus}
+                onChange={(e) => updateMeasurementField('trophicStatus', e.target.value)}
+              />
             </label>
           </div>
 
@@ -723,9 +1071,11 @@ export function WaterBodyDetails({ id }: { id: string }) {
             <button className="btn" type="button" onClick={handleSubmit} disabled={saving}>
               {saving ? 'Сохранение...' : editingMeasurementId ? 'Сохранить' : 'Добавить'}
             </button>
+
             <button className="btn secondary" type="button" onClick={resetForm} disabled={saving}>
               Очистить
             </button>
+
             <button className="btn secondary" type="button" onClick={() => setActiveSection('history')}>
               К истории замеров
             </button>
@@ -744,6 +1094,7 @@ export function WaterBodyDetails({ id }: { id: string }) {
                 </div>
               </div>
             </div>
+
             <WaterQualityChart measurements={measurements} />
           </div>
 
@@ -757,7 +1108,6 @@ export function WaterBodyDetails({ id }: { id: string }) {
               </div>
             </div>
 
-            {/* Поиск в истории */}
             <div className="form-grid" style={{ marginBottom: 20 }}>
               <label className="field">
                 <span>Поиск в истории</span>
@@ -768,10 +1118,20 @@ export function WaterBodyDetails({ id }: { id: string }) {
                   placeholder="Поиск по дате, pH, мутности или трофическому статусу..."
                 />
               </label>
-              {historySearchQuery && (
+
+              {historySearchQuery ? (
                 <div style={{ gridColumn: '1 / -1', marginTop: -8 }}>
-                  <div style={{ fontSize: 14, color: '#666', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div
+                    style={{
+                      fontSize: 14,
+                      color: '#666',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
                     <span>Найдено: {filteredMeasurements.length} из {measurements.length} записей</span>
+
                     <button
                       onClick={() => setHistorySearchQuery('')}
                       style={{
@@ -786,7 +1146,7 @@ export function WaterBodyDetails({ id }: { id: string }) {
                     </button>
                   </div>
                 </div>
-              )}
+              ) : null}
             </div>
 
             {filteredMeasurements.length === 0 ? (
@@ -804,6 +1164,7 @@ export function WaterBodyDetails({ id }: { id: string }) {
                         <th>Действия</th>
                       </tr>
                     </thead>
+
                     <tbody>
                       {paginatedMeasurements.map((measurement) => (
                         <tr key={measurement.id}>
@@ -822,6 +1183,7 @@ export function WaterBodyDetails({ id }: { id: string }) {
                               >
                                 <ActionIcon name="edit" />
                               </button>
+
                               <button
                                 className="btn delete icon"
                                 type="button"
@@ -839,16 +1201,18 @@ export function WaterBodyDetails({ id }: { id: string }) {
                   </table>
                 </div>
 
-                {/* Пагинация */}
-                {totalHistoryPages > 1 && (
-                  <div className="pagination" style={{ 
-                    display: 'flex', 
-                    justifyContent: 'center', 
-                    alignItems: 'center', 
-                    gap: '8px', 
-                    marginTop: '20px',
-                    flexWrap: 'wrap'
-                  }}>
+                {totalHistoryPages > 1 ? (
+                  <div
+                    className="pagination"
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      gap: '8px',
+                      marginTop: '20px',
+                      flexWrap: 'wrap',
+                    }}
+                  >
                     <button
                       type="button"
                       className="pagination-btn"
@@ -859,7 +1223,7 @@ export function WaterBodyDetails({ id }: { id: string }) {
                         border: '1px solid #ddd',
                         background: historyPage === 1 ? '#f5f5f5' : 'white',
                         cursor: historyPage === 1 ? 'not-allowed' : 'pointer',
-                        borderRadius: '4px'
+                        borderRadius: '4px',
                       }}
                     >
                       ← Назад
@@ -867,7 +1231,7 @@ export function WaterBodyDetails({ id }: { id: string }) {
 
                     {Array.from({ length: totalHistoryPages }, (_, index) => {
                       const page = index + 1;
-                      // Показываем максимум 5 страниц с текущей в центре
+
                       if (totalHistoryPages <= 7) {
                         return (
                           <button
@@ -881,16 +1245,19 @@ export function WaterBodyDetails({ id }: { id: string }) {
                               background: historyPage === page ? '#007bff' : 'white',
                               color: historyPage === page ? 'white' : 'black',
                               cursor: 'pointer',
-                              borderRadius: '4px'
+                              borderRadius: '4px',
                             }}
                           >
                             {page}
                           </button>
                         );
                       }
-                      
-                      // Показываем сокращенную пагинацию
-                      if (page === 1 || page === totalHistoryPages || (page >= historyPage - 1 && page <= historyPage + 1)) {
+
+                      if (
+                        page === 1 ||
+                        page === totalHistoryPages ||
+                        (page >= historyPage - 1 && page <= historyPage + 1)
+                      ) {
                         return (
                           <button
                             key={page}
@@ -903,22 +1270,22 @@ export function WaterBodyDetails({ id }: { id: string }) {
                               background: historyPage === page ? '#007bff' : 'white',
                               color: historyPage === page ? 'white' : 'black',
                               cursor: 'pointer',
-                              borderRadius: '4px'
+                              borderRadius: '4px',
                             }}
                           >
                             {page}
                           </button>
                         );
                       }
-                      
-                      // Показываем многоточие
+
                       if (page === 2 && historyPage > 3) {
                         return <span key="ellipsis1" style={{ padding: '6px 12px' }}>...</span>;
                       }
+
                       if (page === totalHistoryPages - 1 && historyPage < totalHistoryPages - 2) {
                         return <span key="ellipsis2" style={{ padding: '6px 12px' }}>...</span>;
                       }
-                      
+
                       return null;
                     })}
 
@@ -932,25 +1299,27 @@ export function WaterBodyDetails({ id }: { id: string }) {
                         border: '1px solid #ddd',
                         background: historyPage === totalHistoryPages ? '#f5f5f5' : 'white',
                         cursor: historyPage === totalHistoryPages ? 'not-allowed' : 'pointer',
-                        borderRadius: '4px'
+                        borderRadius: '4px',
                       }}
                     >
                       Вперёд →
                     </button>
                   </div>
-                )}
-                
-                {/* Информация о странице */}
-                {totalHistoryPages > 1 && (
-                  <div style={{ 
-                    textAlign: 'center', 
-                    marginTop: '12px', 
-                    fontSize: '14px', 
-                    color: '#666' 
-                  }}>
-                    Страница {historyPage} из {totalHistoryPages} · Показано {paginatedMeasurements.length} из {filteredMeasurements.length} записей
+                ) : null}
+
+                {totalHistoryPages > 1 ? (
+                  <div
+                    style={{
+                      textAlign: 'center',
+                      marginTop: '12px',
+                      fontSize: '14px',
+                      color: '#666',
+                    }}
+                  >
+                    Страница {historyPage} из {totalHistoryPages} · Показано {paginatedMeasurements.length} из{' '}
+                    {filteredMeasurements.length} записей
                   </div>
-                )}
+                ) : null}
               </>
             )}
           </div>

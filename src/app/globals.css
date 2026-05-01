@@ -762,60 +762,48 @@ hr.soft {
   font-weight: 600;
 }
 
-/* PAGINATION */
 .pagination {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
   padding: 18px 0 4px;
-  flex-wrap: wrap;
 }
 
 .pagination-btn {
-  min-width: 42px;
-  height: 42px;
-  padding: 0 14px;
-  border-radius: 14px;
-  border: 1px solid var(--border);
+  min-width: 48px;
+  height: 46px;
+  padding: 0 16px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
   background: #ffffff;
-  color: var(--text-main);
-  font-weight: 700;
-  font-size: 14px;
+  color: #1f2937;
+  font-weight: 600;
+  font-size: 16px;
   cursor: pointer;
   transition: 0.2s ease;
-  box-shadow: 0 6px 16px rgba(100, 120, 170, 0.08);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  box-shadow: 0 4px 12px rgba(80, 100, 150, 0.06);
 }
 
 .pagination-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  background: linear-gradient(90deg, rgba(47, 128, 255, 0.08), rgba(123, 63, 242, 0.06));
-  border-color: rgba(63, 111, 255, 0.3);
-  box-shadow: 0 10px 22px rgba(76, 95, 210, 0.12);
+  transform: translateY(-1px);
+  border-color: rgba(63, 111, 255, 0.25);
+  box-shadow: 0 8px 18px rgba(63, 111, 255, 0.12);
 }
 
+/* Активная кнопка — такой же градиент как у .btn и .user-msg */
 .pagination-btn.active {
   background: linear-gradient(90deg, var(--primary-start), var(--primary-end));
   color: #ffffff;
-  border: none;
+  border-color: transparent;
   box-shadow: 0 10px 22px rgba(76, 95, 210, 0.22);
 }
 
-.pagination-btn.active:hover {
-  transform: translateY(-2px);
-  background: linear-gradient(90deg, var(--primary-start), var(--primary-end));
-  box-shadow: 0 14px 28px rgba(76, 95, 210, 0.28);
-}
-
+/* Отключенная кнопка */
 .pagination-btn:disabled {
-  opacity: 0.5;
+  color: #9ca3af;
+  background: #ffffff;
   cursor: not-allowed;
-  transform: none;
+  opacity: 0.7;
   box-shadow: none;
-  background: #f5f5f5;
-  color: var(--text-light);
-  border-color: var(--border);
 }

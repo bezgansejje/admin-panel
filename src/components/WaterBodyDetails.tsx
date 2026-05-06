@@ -842,7 +842,7 @@ export function WaterBodyDetails({ id }: { id: string }) {
                 type="number"
                 min="0"
                 max="14"
-                step="0.1"
+                step="0.01"
                 value={form.ph}
                 onChange={(e) => updateMeasurementField('ph', e.target.value)}
               />

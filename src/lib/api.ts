@@ -12,7 +12,7 @@ import { authStorage } from './auth';
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  'https://lakes-backend-iqu6.onrender.com';
+  'https://lakes-backend-qjas.onrender.com';
 
 type RequestOptions = RequestInit & {
   token?: string;

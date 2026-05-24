@@ -13,6 +13,7 @@ import { authStorage } from './auth';
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   'https://lakes-backend-qjas.onrender.com';
+  process.env.NEXT_PUBLIC_API_URL || 'https://lakes-backend-0zzs.onrender.com';
 
 type RequestOptions = RequestInit & {
   token?: string;
@@ -64,8 +65,9 @@ async function request<T = unknown>(
   path: string,
   init: RequestOptions = {},
 ): Promise<T> {
+  const isFormData = typeof FormData !== 'undefined' && init.body instanceof FormData;
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(init.headers as Record<string, string> | undefined),
   };
 
@@ -226,10 +228,7 @@ export const api = {
     name: string;
     district?: string;
     locationDesc?: string;
-    latitude?: number;
-    longitude?: number;
     boundaries?: unknown;
-    cadastralNumber?: string;
     passport?: WaterBodyPassport;
   }): Promise<WaterBody> => {
     return request<WaterBody>('/water-bodies', {
@@ -244,16 +243,26 @@ export const api = {
       name?: string;
       district?: string;
       locationDesc?: string;
-      latitude?: number;
-      longitude?: number;
       boundaries?: unknown;
-      cadastralNumber?: string;
       passport?: WaterBodyPassport;
     },
   ): Promise<WaterBody> => {
     return request<WaterBody>(`/water-bodies/${id}`, {
       method: 'PUT',
       body: JSON.stringify(body),
+    });
+  },
+
+  uploadWaterBodyBoundaries: async (
+    id: string,
+    file: File,
+  ): Promise<WaterBody> => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    return request<WaterBody>(`/water-bodies/${id}/upload-boundaries`, {
+      method: 'POST',
+      body: formData,
     });
   },
 

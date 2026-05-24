@@ -243,7 +243,7 @@ export function ProblemManager() {
 
           <div className="form-grid">
             <div>
-              <strong>Водоем:</strong> {formatWaterBody(selectedProblem)}
+              <strong>Водоём:</strong> {formatWaterBody(selectedProblem)}
             </div>
             <div>
               <strong>ID жалобы:</strong> {selectedProblem.id}
@@ -387,7 +387,7 @@ export function ProblemManager() {
               <thead>
                 <tr>
                   <th>Заголовок</th>
-                  <th>Водоем</th>
+                  <th>Водоём</th>
                   <th>Серьезность</th>
                   <th>Статус</th>
                   <th>Обновлено</th>

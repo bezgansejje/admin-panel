@@ -12,6 +12,8 @@ const emptyForm = {
   password: '',
 };
 
+const ITEMS_PER_PAGE = 10;
+
 function roleLabel(role: User['role']) {
   return role === 'ADMIN' ? 'Администратор' : 'Пользователь';
 }
@@ -28,6 +30,7 @@ export function UserManager() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [viewingUser, setViewingUser] = useState<User | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
 
   async function load() {
     try {
@@ -143,6 +146,22 @@ export function UserManager() {
       statusLabel(user.isActive).toLowerCase().includes(query)
     );
   });
+
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / ITEMS_PER_PAGE));
+  const paginatedUsers = filteredUsers.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE,
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   const activeCount = users.filter((user) => user.isActive !== false).length;
   const blockedCount = users.filter((user) => user.isActive === false).length;
@@ -284,7 +303,7 @@ export function UserManager() {
             </thead>
 
             <tbody>
-              {filteredUsers.map((user) => (
+              {paginatedUsers.map((user) => (
                 <tr key={user.id}>
                   <td>{user.login || '—'}</td>
                   <td>{user.email}</td>
@@ -355,6 +374,39 @@ export function UserManager() {
             </tbody>
           </table>
         </div>
+
+        {totalPages > 1 ? (
+          <div className="pagination">
+            <button
+              type="button"
+              className="pagination-btn"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+            >
+              Назад
+            </button>
+
+            {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+              <button
+                key={page}
+                type="button"
+                className={currentPage === page ? 'pagination-btn active' : 'pagination-btn'}
+                onClick={() => setCurrentPage(page)}
+              >
+                {page}
+              </button>
+            ))}
+
+            <button
+              type="button"
+              className="pagination-btn"
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+            >
+              Вперёд
+            </button>
+          </div>
+        ) : null}
       </div>
     </div>
   );

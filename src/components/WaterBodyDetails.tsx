@@ -110,7 +110,7 @@ const emptyPassportForm: PassportForm = {
 };
 
 const sectionOptions: { id: SectionId; label: string; hint: string }[] = [
-  { id: 'overview', label: 'Обзор', hint: 'Краткая информация по водоему' },
+  { id: 'overview', label: 'Обзор', hint: 'Краткая информация по водоёму' },
   { id: 'passport', label: 'Паспорт', hint: 'Паспортные данные и описание' },
   { id: 'measurements', label: 'Замеры', hint: 'Быстрое добавление и редактирование' },
   { id: 'history', label: 'История', hint: 'График и список всех записей' },
@@ -298,6 +298,7 @@ export function WaterBodyDetails({ id }: { id: string }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [passportSaving, setPassportSaving] = useState(false);
+  const [boundariesUploading, setBoundariesUploading] = useState(false);
   const [error, setError] = useState('');
   const [historySearchQuery, setHistorySearchQuery] = useState('');
   const [historyPage, setHistoryPage] = useState(1);
@@ -337,7 +338,7 @@ export function WaterBodyDetails({ id }: { id: string }) {
       setMeasurements(measurementsData);
       setPassportForm(passportToForm(bodyData.passport));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Не удалось загрузить данные водоема');
+      setError(e instanceof Error ? e.message : 'Не удалось загрузить данные водоёма');
     } finally {
       setLoading(false);
     }
@@ -458,6 +459,20 @@ export function WaterBodyDetails({ id }: { id: string }) {
     }
   }
 
+  async function handleUploadBoundaries(file?: File) {
+    if (!file) return;
+
+    try {
+      setBoundariesUploading(true);
+      await api.uploadWaterBodyBoundaries(id, file);
+      await load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Не удалось загрузить GeoJSON');
+    } finally {
+      setBoundariesUploading(false);
+    }
+  }
+
   if (loading) {
     return <div className="card">Загрузка...</div>;
   }
@@ -467,7 +482,7 @@ export function WaterBodyDetails({ id }: { id: string }) {
   }
 
   if (!waterBody) {
-    return <div className="card">Водоем не найден</div>;
+    return <div className="card">Водоём не найден</div>;
   }
 
   return (
@@ -476,7 +491,7 @@ export function WaterBodyDetails({ id }: { id: string }) {
         <div className="topbar">
           <div>
             <h2 style={{ margin: 0 }}>{waterBody.name}</h2>
-            <div className="muted">Информация о водоеме и быстрый доступ к основным действиям.</div>
+            <div className="muted">Информация о водоёме и быстрый доступ к основным действиям.</div>
           </div>
 
           <div className="actions">
@@ -543,7 +558,7 @@ export function WaterBodyDetails({ id }: { id: string }) {
             <div>
               <h3>Общая информация</h3>
               <div className="muted">
-                Основные сведения по водоему без длинной формы и лишней прокрутки.
+               
               </div>
             </div>
           </div>
@@ -554,11 +569,7 @@ export function WaterBodyDetails({ id }: { id: string }) {
             </div>
 
             <div>
-              <strong>Широта:</strong> {waterBody.latitude ?? '—'}
-            </div>
-
-            <div>
-              <strong>Долгота:</strong> {waterBody.longitude ?? '—'}
+              <strong>Границы:</strong> {waterBody.boundaries ? 'Загружены' : 'Не загружены'}
             </div>
 
             <div>
@@ -573,6 +584,7 @@ export function WaterBodyDetails({ id }: { id: string }) {
               <span>Ссылка на изображение</span>
               <input value={waterBody.imageUrl || ''} disabled />
             </div>
+
 
             {waterBody.imageUrl ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -614,9 +626,9 @@ export function WaterBodyDetails({ id }: { id: string }) {
         <div className="card stack">
           <div className="section-heading">
             <div>
-              <h3>Паспорт водоема</h3>
+              <h3>Паспорт водоёма</h3>
               <div className="muted">
-                Все паспортные поля собраны отдельно и больше не мешают работе с замерами.
+                
               </div>
             </div>
           </div>
@@ -711,7 +723,7 @@ export function WaterBodyDetails({ id }: { id: string }) {
             </label>
 
             <label className="field">
-              <span>Объем (млн м3)</span>
+              <span>Объём (млн м3)</span>
               <input
                 value={passportForm.volume}
                 onChange={(e) => setPassportForm({ ...passportForm, volume: e.target.value })}
@@ -801,7 +813,7 @@ export function WaterBodyDetails({ id }: { id: string }) {
             <div>
               <h3>{editingMeasurementId ? 'Редактирование замера' : 'Добавление замера'}</h3>
               <div className="muted">
-                Форма вынесена в отдельный раздел, чтобы можно было быстро вносить данные без прокрутки всей карточки.
+                
               </div>
             </div>
 
@@ -1090,7 +1102,6 @@ export function WaterBodyDetails({ id }: { id: string }) {
               <div>
                 <h3>График показателей воды</h3>
                 <div className="muted">
-                  Аналитика и список замеров вынесены отдельно, чтобы не перегружать форму ввода.
                 </div>
               </div>
             </div>

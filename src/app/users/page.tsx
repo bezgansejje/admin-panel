@@ -7,7 +7,7 @@ export default function UsersPage() {
     <ProtectedShell>
       <PageHeader
         title="Пользователи"
-        description="Управление учетными записями, ролями и статусами доступа."
+        description="Управление учётными записями, ролями и статусами доступа."
       />
       <UserManager />
     </ProtectedShell>

@@ -8,7 +8,7 @@ export default function ProblemsPage() {
     <ProtectedShell>
       <PageHeader
         title="Проблемы"
-        description="Список экологических проблем по водоемам и их текущий статус."
+        description="Список экологических проблем по водоёмам и их текущий статус."
       />
 
       <ProblemManager />

@@ -9,25 +9,16 @@ import { ActionIcon } from './ActionIcon';
 type WaterBodyForm = {
   name: string;
   district: string;
-  latitude: string;
-  longitude: string;
   imageUrl: string;
 };
 
 const emptyForm: WaterBodyForm = {
   name: '',
   district: '',
-  latitude: '',
-  longitude: '',
   imageUrl: '',
 };
 
-function toNumber(value: string): number | undefined {
-  if (!value.trim()) return undefined;
-
-  const num = Number(value);
-  return Number.isNaN(num) ? undefined : num;
-}
+const ITEMS_PER_PAGE = 10;
 
 export function WaterBodyManager() {
   const [items, setItems] = useState<WaterBody[]>([]);
@@ -36,6 +27,8 @@ export function WaterBodyManager() {
   const [form, setForm] = useState<WaterBodyForm>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [boundariesFile, setBoundariesFile] = useState<File | null>(null);
 
   async function load() {
     try {
@@ -44,7 +37,7 @@ export function WaterBodyManager() {
       const data = await api.getWaterBodies();
       setItems(data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Не удалось загрузить водоемы');
+      setError(e instanceof Error ? e.message : 'Не удалось загрузить водоёмы');
     } finally {
       setLoading(false);
     }
@@ -57,80 +50,103 @@ export function WaterBodyManager() {
   async function submit() {
     try {
       if (!form.name.trim()) {
-        alert('Введите название водоема');
+        alert('Введите название водоёма');
         return;
       }
 
       const payload = {
         name: form.name.trim(),
         district: form.district.trim() || undefined,
-        latitude: toNumber(form.latitude),
-        longitude: toNumber(form.longitude),
         imageUrl: form.imageUrl.trim() || undefined,
       };
 
+      let savedWaterBody: WaterBody;
+
       if (editingId) {
-        await api.updateWaterBody(editingId, payload);
+        savedWaterBody = await api.updateWaterBody(editingId, payload);
       } else {
-        await api.createWaterBody(payload);
+        savedWaterBody = await api.createWaterBody(payload);
+      }
+
+      if (boundariesFile) {
+        await api.uploadWaterBodyBoundaries(savedWaterBody.id, boundariesFile);
       }
 
       setForm(emptyForm);
+      setBoundariesFile(null);
       setEditingId(null);
       await load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Не удалось сохранить водоем');
+      alert(e instanceof Error ? e.message : 'Не удалось сохранить водоём');
     }
   }
 
   async function remove(id: string) {
-    if (!confirm('Удалить водоем?')) return;
+    if (!confirm('Удалить водоём?')) return;
 
     try {
       await api.deleteWaterBody(id);
       await load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Не удалось удалить водоем');
+      alert(e instanceof Error ? e.message : 'Не удалось удалить водоём');
     }
   }
 
   function startEdit(item: WaterBody) {
     setEditingId(item.id);
+    setBoundariesFile(null);
     setForm({
       name: item.name || '',
       district: item.district || '',
-      latitude: item.latitude != null ? String(item.latitude) : '',
-      longitude: item.longitude != null ? String(item.longitude) : '',
       imageUrl: item.imageUrl || '',
     });
   }
 
   function resetForm() {
     setForm(emptyForm);
+    setBoundariesFile(null);
     setEditingId(null);
   }
 
-  // Фильтрация водоемов по поисковому запросу
+  // Фильтрация водоёмов по поисковому запросу
   const filteredItems = items.filter((item) => {
     if (!searchQuery.trim()) return true;
     
     const query = searchQuery.toLowerCase().trim();
     return (
       item.name.toLowerCase().includes(query) ||
-      (item.district && item.district.toLowerCase().includes(query)) ||
-      (item.latitude?.toString().includes(query)) ||
-      (item.longitude?.toString().includes(query))
+      (item.district && item.district.toLowerCase().includes(query))
     );
   });
+
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / ITEMS_PER_PAGE));
+  const paginatedItems = filteredItems.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE,
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const editingItem = editingId
+    ? items.find((item) => item.id === editingId) || null
+    : null;
 
   return (
     <div className="stack">
       <div className="card stack">
-        <h3>{editingId ? 'Редактирование водоема' : 'Создание водоема'}</h3>
+        <h3>{editingId ? 'Редактирование водоёма' : 'Создание водоёма'}</h3>
 
         <div className="form-grid">
           <label className="field">
-            <span>Название водоема</span>
+            <span>Название водоёма</span>
             <input
               placeholder="Введите название"
               value={form.name}
@@ -148,24 +164,6 @@ export function WaterBodyManager() {
           </label>
 
           <label className="field">
-            <span>Широта</span>
-            <input
-              placeholder="Например: 54.8721"
-              value={form.latitude}
-              onChange={(e) => setForm({ ...form, latitude: e.target.value })}
-            />
-          </label>
-
-          <label className="field">
-            <span>Долгота</span>
-            <input
-              placeholder="Например: 69.1430"
-              value={form.longitude}
-              onChange={(e) => setForm({ ...form, longitude: e.target.value })}
-            />
-          </label>
-
-          <label className="field">
             <span>Ссылка на изображение</span>
             <input
               placeholder="https://..."
@@ -173,13 +171,60 @@ export function WaterBodyManager() {
               onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
             />
           </label>
+
+          <div className="field geojson-upload-field">
+            <span>Границы водоёма</span>
+            <input
+              key={boundariesFile ? 'boundaries-selected' : 'boundaries-empty'}
+              id="water-body-boundaries-file"
+              className="geojson-upload-input"
+              type="file"
+              accept=".json,.geojson,application/json,application/geo+json"
+              onChange={(event) => {
+                setBoundariesFile(event.target.files?.[0] ?? null);
+              }}
+            />
+            <label className="geojson-upload" htmlFor="water-body-boundaries-file">
+              <span className="geojson-upload__icon">JSON</span>
+              <span className="geojson-upload__body">
+                <strong>
+                  {boundariesFile
+                    ? boundariesFile.name
+                    : editingItem?.boundaries
+                      ? 'Границы уже загружены'
+                      : 'Выберите файл границ'}
+                </strong>
+                <small>
+                  {boundariesFile
+                    ? `${(boundariesFile.size / 1024).toFixed(1)} КБ`
+                    : 'Polygon, MultiPolygon, LineString или MultiLineString'}
+                </small>
+              </span>
+              <span className="geojson-upload__action">
+                {boundariesFile ? 'Заменить' : 'Выбрать'}
+              </span>
+            </label>
+          </div>
         </div>
+
+        {boundariesFile ? (
+          <div className="geojson-upload-note">
+            <span>Файл будет сохранён вместе с водоёмом.</span>
+            <button
+              className="btn secondary"
+              type="button"
+              onClick={() => setBoundariesFile(null)}
+            >
+              Убрать файл
+            </button>
+          </div>
+        ) : null}
 
         {form.imageUrl ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <img
               src={form.imageUrl}
-              alt="Превью водоема"
+              alt="Превью водоёма"
               className="table-thumb"
               style={{ width: 120, height: 80, borderRadius: 16 }}
             />
@@ -200,24 +245,24 @@ export function WaterBodyManager() {
 
       <div className="card">
         <div className="topbar" style={{ padding: 0, marginBottom: 16 }}>
-          <h3 style={{ margin: 0 }}>Водоемы</h3>
+          <h3 style={{ margin: 0 }}>Водоёмы</h3>
         </div>
 
         {/* Поиск в стиле формы создания */}
         <div className="form-grid" style={{ marginBottom: 20 }}>
           <label className="field">
-            <span>Поиск водоемов</span>
+            <span>Поиск водоёмов</span>
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Поиск по названию, району, широте или долготе..."
+              placeholder="Поиск по названию или району..."
             />
           </label>
           {searchQuery && (
             <div style={{ gridColumn: '1 / -1', marginTop: -8 }}>
               <div style={{ fontSize: 14, color: '#666', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>Найдено: {filteredItems.length} из {items.length} водоемов</span>
+                <span>Найдено: {filteredItems.length} из {items.length} водоёмов</span>
                 <button
                   onClick={() => setSearchQuery('')}
                   style={{
@@ -245,14 +290,13 @@ export function WaterBodyManager() {
                 <th>Название</th>
                 <th>Район</th>
                 <th>Изображение</th>
-                <th>Широта</th>
-                <th>Долгота</th>
+                <th>Границы</th>
                 <th>Действия</th>
               </tr>
             </thead>
 
             <tbody>
-              {filteredItems.map((item) => (
+              {paginatedItems.map((item) => (
                 <tr key={item.id}>
                   <td>{item.name}</td>
                   <td>{item.district || '—'}</td>
@@ -269,8 +313,17 @@ export function WaterBodyManager() {
                       </span>
                     )}
                   </td>
-                  <td>{item.latitude ?? '—'}</td>
-                  <td>{item.longitude ?? '—'}</td>
+                  <td>
+                    <span
+                      className={
+                        item.boundaries
+                          ? 'badge geojson-status geojson-status--ready'
+                          : 'badge geojson-status'
+                      }
+                    >
+                      {item.boundaries ? 'Загружены' : 'Нет'}
+                    </span>
+                  </td>
 
                   <td>
                     <div className="actions table-actions">
@@ -308,15 +361,50 @@ export function WaterBodyManager() {
               ))}
 
               {!loading && filteredItems.length === 0 ? (
-                <td>
-                  <td colSpan={6}>
-                    {searchQuery ? 'Водоемы не найдены по вашему запросу' : 'Водоемы не найдены'}
+                <tr>
+                  <td colSpan={5} style={{ textAlign: 'center', padding: '20px' }}>
+                    {searchQuery
+                      ? 'Водоёмы не найдены по вашему запросу'
+                      : 'Водоёмы не найдены'}
                   </td>
-                </td>
+                </tr>
               ) : null}
             </tbody>
           </table>
         </div>
+
+        {totalPages > 1 ? (
+          <div className="pagination">
+            <button
+              type="button"
+              className="pagination-btn"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+            >
+              Назад
+            </button>
+
+            {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+              <button
+                key={page}
+                type="button"
+                className={currentPage === page ? 'pagination-btn active' : 'pagination-btn'}
+                onClick={() => setCurrentPage(page)}
+              >
+                {page}
+              </button>
+            ))}
+
+            <button
+              type="button"
+              className="pagination-btn"
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+            >
+              Вперёд
+            </button>
+          </div>
+        ) : null}
       </div>
     </div>
   );

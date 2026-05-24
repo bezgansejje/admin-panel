@@ -42,15 +42,59 @@ export interface WaterBodyPassport {
   invertebrates?: string;
 }
 
+export type GeoJsonPosition = [number, number, ...number[]];
+
+export type GeoJsonPolygon = {
+  type: 'Polygon';
+  coordinates: GeoJsonPosition[][];
+};
+
+export type GeoJsonMultiPolygon = {
+  type: 'MultiPolygon';
+  coordinates: GeoJsonPosition[][][];
+};
+
+export type GeoJsonLineString = {
+  type: 'LineString';
+  coordinates: GeoJsonPosition[];
+};
+
+export type GeoJsonMultiLineString = {
+  type: 'MultiLineString';
+  coordinates: GeoJsonPosition[][];
+};
+
+export type GeoJsonBoundaryGeometry =
+  | GeoJsonPolygon
+  | GeoJsonMultiPolygon
+  | GeoJsonLineString
+  | GeoJsonMultiLineString;
+
+export type WaterBodyBoundaries =
+  | GeoJsonBoundaryGeometry
+  | {
+      type: 'Feature';
+      geometry: GeoJsonBoundaryGeometry;
+      properties?: Record<string, unknown> | null;
+    }
+  | {
+      type: 'FeatureCollection';
+      features: Array<{
+        type: 'Feature';
+        geometry: GeoJsonBoundaryGeometry;
+        properties?: Record<string, unknown> | null;
+      }>;
+    };
+
 export interface WaterBody {
-  imageUrl: string;
+  imageUrl?: string | null;
   id: string;
   name: string;
   district?: string | null;
   locationDesc?: string | null;
   latitude?: number | null;
   longitude?: number | null;
-  boundaries?: unknown;
+  boundaries?: WaterBodyBoundaries | null;
   cadastralNumber?: string | null;
   passport?: WaterBodyPassport | null;
   measurements?: Measurement[];

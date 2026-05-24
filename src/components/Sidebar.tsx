@@ -7,7 +7,7 @@ import { authStorage } from '@/lib/auth';
 const links = [
   { href: '/', label: 'Главная' },
   { href: '/users', label: 'Пользователи' },
-  { href: '/water-bodies', label: 'Водоемы' },
+  { href: '/water-bodies', label: 'Водоёмы' },
   { href: '/problems', label: 'Проблемы' },
 ];
 
@@ -19,7 +19,7 @@ export function Sidebar() {
     <aside className="sidebar">
       <h2>Панель администратора</h2>
       <p>
-        Панель управления пользователями, водоемами, замерами и экологическими
+        Панель управления пользователями, водоёмами, замерами и экологическими
         проблемами.
       </p>
 

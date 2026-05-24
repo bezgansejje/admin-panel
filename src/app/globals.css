@@ -645,6 +645,110 @@ textarea {
   background: #f9fbff;
 }
 
+.geojson-upload-field {
+  grid-column: 1 / -1;
+}
+
+.geojson-upload-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.geojson-upload {
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px dashed rgba(63, 111, 255, 0.36);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #fbfdff 0%, #f5f8ff 100%);
+  color: var(--text-main);
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.geojson-upload:hover {
+  border-color: rgba(63, 111, 255, 0.62);
+  box-shadow: 0 10px 24px rgba(63, 111, 255, 0.12);
+  transform: translateY(-1px);
+}
+
+.geojson-upload__icon {
+  width: 44px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #4f72ff, #7b3ff2);
+  color: white;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0;
+  box-shadow: 0 8px 18px rgba(76, 95, 210, 0.18);
+}
+
+.geojson-upload__body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.geojson-upload__body strong,
+.geojson-upload__body small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.geojson-upload__body small {
+  color: var(--text-muted);
+}
+
+.geojson-upload__action {
+  padding: 8px 11px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  color: #345dd8;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.geojson-upload-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(67, 181, 111, 0.08);
+  color: #2f6c48;
+  font-weight: 700;
+}
+
+.geojson-upload-note .btn {
+  padding: 7px 11px;
+  font-size: 13px;
+}
+
+.geojson-status {
+  background: #f5f8ff;
+  color: #64748b;
+}
+
+.geojson-status--ready {
+  background: rgba(67, 181, 111, 0.12);
+  color: #2f8f57;
+  border-color: rgba(67, 181, 111, 0.22);
+}
+
 /* TEXT */
 
 .muted {
